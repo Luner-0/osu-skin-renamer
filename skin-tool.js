@@ -15,7 +15,8 @@
  *   node skin-tool.js apply  [file] [--dry-run] read edited names.tsv and rename in bulk
  *   node skin-tool.js rename --match <regex> --replace <text> [--dry-run]
  *
- *   --db <path>   use a different client.realm (default: %APPDATA%\osu\client.realm)
+ *   --db <path>   use a different client.realm (default: %APPDATA%\osu\client.realm,
+ *                 or ~/.local/share/osu/client.realm on Linux)
  */
 
 const fs = require("fs");
@@ -23,7 +24,12 @@ const path = require("path");
 const { execSync } = require("child_process");
 const Realm = require("realm");
 
-const DEFAULT_DB = path.join(process.env.APPDATA, "osu", "client.realm");
+// lazer's default data dir: %APPDATA%\osu on Windows, $XDG_DATA_HOME/osu
+// (usually ~/.local/share/osu) on Linux.
+const DATA_DIR = process.platform === "win32"
+  ? process.env.APPDATA
+  : process.env.XDG_DATA_HOME || path.join(require("os").homedir(), ".local", "share");
+const DEFAULT_DB = path.join(DATA_DIR, "osu", "client.realm");
 // Overridable because in a packaged portable exe __dirname lives in an
 // unpack-to-temp directory that is wiped between runs.
 const BACKUP_DIR = process.env.SKIN_TOOL_BACKUP_DIR || path.join(__dirname, "backups");
@@ -47,6 +53,11 @@ function parseArgs(argv) {
 
 function osuIsRunning() {
   try {
+    if (process.platform !== "win32") {
+      // pgrep exits non-zero (→ catch → false) when nothing matches.
+      execSync('pgrep -x "osu!"', { stdio: "ignore" });
+      return true;
+    }
     const out = execSync('tasklist /FI "IMAGENAME eq osu!.exe" /FO CSV /NH', { encoding: "utf8" });
     return /osu!\.exe/i.test(out);
   } catch {

@@ -1,0 +1,50 @@
+name: Release
+
+# Push a tag like v1.1.0 → builds the Windows installer and the Linux
+# packages (Arch .pacman + AppImage) and attaches them to that release.
+# Linux must be built on Linux: Realm downloads its native binary for the
+# platform it's installed on.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release view "$TAG" -R "$REPO" || gh release create "$TAG" -R "$REPO" --title "$TAG" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+
+  build:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            args: --win
+            files: dist/*.exe
+          - os: ubuntu-latest
+            args: --linux
+            files: dist/*.pacman dist/*.AppImage
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+      - run: npm ci
+      - run: npx electron-builder ${{ matrix.args }} --publish never
+      - run: gh release upload "$TAG" ${{ matrix.files }} --clobber
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}

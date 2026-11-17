@@ -44,6 +44,24 @@ nächsten osu!-Start. Oben lässt sich die Liste filtern.
 Auch hier gilt: osu! muss geschlossen sein. Es werden nur die 2 neuesten
 Backups behalten.
 
+### Linux (Arch)
+
+Unter *Releases* die `.pacman`-Datei herunterladen und installieren:
+
+```
+sudo pacman -U osu-skin-renamer-*.pacman
+```
+
+Alternativ das `.AppImage` (läuft auf jeder Distribution):
+`chmod +x osu-skin-renamer-*.AppImage && ./osu-skin-renamer-*.AppImage`
+
+Die Skin-Datenbank wird unter `~/.local/share/osu/client.realm` gesucht
+(bzw. `$XDG_DATA_HOME/osu`). Wer lazer per Flatpak installiert hat, findet
+sie unter `~/.var/app/sh.ppy.osu/data/osu/` — dann per CLI mit
+`--db <pfad>` angeben.
+
+Selbst bauen (auf Linux): `npm install && npm run dist:linux`
+
 ### Windows-Installer bauen
 
 ```

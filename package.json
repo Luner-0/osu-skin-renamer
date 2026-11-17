@@ -1,13 +1,14 @@
 {
   "name": "osu-skin-renamer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "List and bulk-rename osu!lazer skins directly in the client.realm database",
   "main": "main.js",
   "author": "luner",
   "scripts": {
     "list": "node skin-tool.js list",
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
   },
   "build": {
     "appId": "com.luner.osu-skin-renamer",
@@ -22,9 +23,20 @@
       "!node_modules/realm/prebuilds/android/**"
     ],
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "pacman",
+        "AppImage"
+      ],
+      "category": "Utility",
+      "maintainer": "Luner-0 <Luner-0@users.noreply.github.com>"
     },
     "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
       "oneClick": true,
       "perMachine": false,
       "createDesktopShortcut": true,
