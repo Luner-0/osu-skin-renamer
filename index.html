@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>osu! skin renamer</title>
+  <style>
+    :root {
+      --bg: #16121c;
+      --panel: #1f1926;
+      --row-hover: #2a2233;
+      --row-selected: #3d2a52;
+      --accent: #ff66aa;
+      --text: #eee6f5;
+      --muted: #9b8fae;
+      --border: #322a3d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 14px "Segoe UI", system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 16px; font-weight: 600; }
+    header h1 span { color: var(--accent); }
+    #search {
+      flex: 1;
+      max-width: 340px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+    }
+    #search:focus { border-color: var(--accent); }
+    #refresh {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      cursor: pointer;
+    }
+    #refresh:hover { border-color: var(--accent); }
+    .hbtn {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+    .hbtn:hover:not(:disabled) { border-color: var(--accent); }
+    .hbtn:disabled { opacity: .4; cursor: default; }
+    #save:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #16121c; font-weight: 600; }
+    .row.dirty .name { color: var(--accent); }
+    .row.dirty .name::before { content: "● "; font-size: 10px; vertical-align: middle; }
+    #count { color: var(--muted); font-size: 13px; margin-left: auto; }
+    #list { flex: 1; overflow-y: auto; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 16px;
+      cursor: default;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .row:hover { background: var(--row-hover); }
+    .row.selected { background: var(--row-selected); }
+    .row.drop { background: var(--row-selected); box-shadow: inset 0 0 0 1px var(--accent); }
+    .tag .apply { cursor: grab; }
+    .row .name {
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 2px 6px;
+      margin: -2px -6px;
+      border-radius: 4px;
+    }
+    .row .creator {
+      width: 320px;
+      color: var(--muted);
+      font-size: 12.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-shrink: 0;
+    }
+    .row input.editor {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin: -2px -6px;
+      outline: none;
+      user-select: text;
+    }
+    #status {
+      padding: 8px 16px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12.5px;
+      min-height: 34px;
+    }
+    #status.error { color: #ff7a7a; }
+    #status.ok { color: #7ae0a0; }
+    .empty { padding: 40px; text-align: center; color: var(--muted); }
+    main { flex: 1; display: flex; min-height: 0; }
+    #tags {
+      width: 240px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      padding: 12px;
+    }
+    #tags h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 4px 0 8px; }
+    #tags section + section { margin-top: 18px; }
+    .tag { display: flex; gap: 4px; margin-bottom: 4px; }
+    .tag button, .tag input, .add input {
+      font: inherit; color: var(--text); background: var(--bg);
+      border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px;
+    }
+    .tag button { cursor: pointer; }
+    .tag button:hover { border-color: var(--accent); }
+    .tag .apply { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tag .apply.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .tag input, .add input { flex: 1; min-width: 0; outline: none; user-select: text; }
+    .tag input:focus, .add input:focus { border-color: var(--accent); }
+    .add { display: flex; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>osu!<span>skins</span></h1>
+    <input id="search" type="text" placeholder="Filter skins…" spellcheck="false" />
+    <button id="refresh" title="Reload from database">⟳ Refresh</button>
+    <button id="undo" class="hbtn" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+    <button id="redo" class="hbtn" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
+    <button id="save" class="hbtn" title="Write all pending renames to osu! (Ctrl+S)" disabled>💾 Save</button>
+    <div id="count"></div>
+  </header>
+  <main>
+    <div id="list" tabindex="0"></div>
+    <aside id="tags">
+      <section>
+        <h2>Prefix</h2>
+        <div id="prefix-list"></div>
+        <div class="add"><input id="prefix-add" placeholder="Add prefix tag… (Enter)" spellcheck="false" /></div>
+      </section>
+      <section>
+        <h2>Suffix</h2>
+        <div id="suffix-list"></div>
+        <div class="add"><input id="suffix-add" placeholder="Add suffix tag… (Enter)" spellcheck="false" /></div>
+      </section>
+    </aside>
+  </main>
+  <div id="status">Double-click (or F2) renames — right-click for menu, Del deletes.</div>
+
+  <script>
+    const listEl = document.getElementById("list");
+    const searchEl = document.getElementById("search");
+    const countEl = document.getElementById("count");
+    const statusEl = document.getElementById("status");
+
+    // Named allSkins because contextBridge already defines window.skins,
+    // and a top-level `let skins` would collide with it.
+    let allSkins = [];     // [{id, name, creator}]
+    let selectedId = null;
+    let selectedIds = new Set();
+    let editing = false;
+
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg;
+      statusEl.className = cls || "";
+    }
+
+    function visibleSkins() {
+      const q = searchEl.value.trim().toLowerCase();
+      if (!q) return allSkins;
+      return allSkins.filter(
+        (s) => s.name.toLowerCase().includes(q) || s.creator.toLowerCase().includes(q)
+      );
+    }
+
+    function render() {
+      const vis = visibleSkins();
+      countEl.textContent = `${vis.length} / ${allSkins.length} skins`;
+      renderTags();
+      updateButtons();
+      listEl.innerHTML = "";
+      if (vis.length === 0) {
+        listEl.innerHTML = '<div class="empty">No skins match.</div>';
+        return;
+      }
+      for (const s of vis) {
+        const row = document.createElement("div");
+        row.className = "row" + (selectedIds.has(s.id) ? " selected" : "") + (s.name !== s.saved ? " dirty" : "");
+        row.dataset.id = s.id;
+
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = s.name;
+        name.title = s.name !== s.saved ? `${s.name}\n(unsaved — was "${s.saved}")` : s.name;
+
+        const creator = document.createElement("div");
+        creator.className = "creator";
+        creator.textContent = s.creator ? "by " + s.creator : "";
+        creator.title = s.creator;
+
+        row.append(name, creator);
+        row.addEventListener("mousedown", (e) => {
+          if (e.button !== 0 && selectedIds.has(s.id)) return; // right-click keeps multi-selection
+          select(s.id, e.altKey);
+        });
+        // Drop a tag from the sidebar onto a skin to add it.
+        row.addEventListener("dragover", (e) => {
+          if (!e.dataTransfer.types.includes("application/x-skin-tag")) return;
+          e.preventDefault();
+          row.classList.add("drop");
+        });
+        row.addEventListener("dragleave", () => row.classList.remove("drop"));
+        row.addEventListener("drop", (e) => {
+          row.classList.remove("drop");
+          const data = e.dataTransfer.getData("application/x-skin-tag");
+          if (!data) return;
+          e.preventDefault();
+          const { kind, t } = JSON.parse(data);
+          // Dropping onto one of several selected skins tags all of them.
+          if (!selectedIds.has(s.id)) select(s.id);
+          applyTag(kind, t, selectedSkins(), true);
+        });
+        name.addEventListener("dblclick", () => startEdit(row, s));
+        row.addEventListener("contextmenu", async (ev) => {
+          ev.preventDefault();
+          if (editing) return;
+          if (!selectedIds.has(s.id)) select(s.id);
+          const action = await window.skins.contextMenu();
+          if (action === "rename") {
+            startEdit(row, s);
+          } else if (action === "delete") {
+            await deleteSkin(s);
+          }
+        });
+        listEl.appendChild(row);
+      }
+    }
+
+    // selectedId is the primary skin (F2 / Delete / arrows); selectedIds is
+    // the whole selection, grown with Alt+click.
+    function select(id, add = false) {
+      if (editing) return;
+      if (!add) {
+        selectedIds = new Set([id]);
+        selectedId = id;
+      } else if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+        selectedId = selectedId === id ? [...selectedIds].pop() ?? null : selectedId;
+      } else {
+        selectedIds.add(id);
+        selectedId = id;
+      }
+      for (const row of listEl.children) {
+        if (row.classList) row.classList.toggle("selected", selectedIds.has(row.dataset.id));
+      }
+      if (selectedIds.size > 1) setStatus(`${selectedIds.size} skins selected — tags apply to all of them.`);
+      renderTags();
+    }
+
+    const selectedSkins = () => allSkins.filter((s) => selectedIds.has(s.id));
+
+    function startEdit(row, skin) {
+      if (editing) return;
+      editing = true;
+      select(skin.id);
+
+      const nameEl = row.querySelector(".name");
+      const input = document.createElement("input");
+      input.className = "editor";
+      input.value = skin.name;
+      input.spellcheck = false;
+      nameEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      let done = false;
+      const finish = (commit) => {
+        if (done) return;
+        done = true;
+        const newName = input.value.trim();
+        if (commit && newName) renameSkin(skin, newName);
+        editing = false;
+        render();
+        listEl.focus();
+      };
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") finish(true);
+        else if (e.key === "Escape") finish(false);
+        e.stopPropagation();
+      });
+      input.addEventListener("blur", () => finish(true));
+    }
+
+    const errMsg = (e) => e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+
+    // ---- Pending renames + undo/redo ----
+    // Renames only change skin.name locally; skin.saved is what's in the DB.
+    // Save writes every skin where name !== saved in one batch.
+    let undoStack = [];   // [[{id, from, to}, …]] — one entry per user action
+    let redoStack = [];
+    const dirtySkins = () => allSkins.filter((s) => s.name !== s.saved);
+
+    function updateButtons() {
+      const n = dirtySkins().length;
+      document.getElementById("undo").disabled = !undoStack.length;
+      document.getElementById("redo").disabled = !redoStack.length;
+      const save = document.getElementById("save");
+      save.disabled = !n;
+      save.textContent = n ? `💾 Save (${n})` : "💾 Save";
+    }
+
+    function setName(id, name) {
+      const skin = allSkins.find((s) => s.id === id);
+      if (skin) skin.name = name;
+    }
+
+    const renameSkin = (skin, newName) => renameMany([[skin, newName]]);
+
+    // pairs: [[skin, newName], …] — recorded as a single undo step.
+    function renameMany(pairs) {
+      const action = pairs
+        .filter(([s, n]) => n !== s.name)
+        .map(([s, n]) => ({ id: s.id, from: s.name, to: n }));
+      if (!action.length) return;
+      undoStack.push(action);
+      redoStack = [];
+      for (const a of action) setName(a.id, a.to);
+      setStatus(
+        (action.length === 1 ? `"${action[0].to}"` : `${action.length} skins renamed`) +
+          " — unsaved, press Save (Ctrl+S) to write to osu!"
+      );
+      render();
+    }
+
+    const describe = (action, key) =>
+      action.length === 1 ? `"${action[0][key]}"` : `${action.length} skins`;
+
+    function undo() {
+      const action = undoStack.pop();
+      if (!action) return;
+      for (const a of action) setName(a.id, a.from);
+      redoStack.push(action);
+      setStatus(`Undid → ${describe(action, "from")}`);
+      render();
+    }
+
+    function redo() {
+      const action = redoStack.pop();
+      if (!action) return;
+      for (const a of action) setName(a.id, a.to);
+      undoStack.push(action);
+      setStatus(`Redid → ${describe(action, "to")}`);
+      render();
+    }
+
+    async function save() {
+      const dirty = dirtySkins();
+      if (!dirty.length || editing) return;
+      editing = true;
+      setStatus(`Saving ${dirty.length} rename(s)…`);
+      try {
+        const res = await window.skins.save(dirty.map((s) => ({ id: s.id, name: s.name })));
+        for (const s of dirty) s.saved = s.name;
+        setStatus(`Saved ${res.renamed} rename(s).` + (res.backup ? `  (backup: ${res.backup})` : ""), "ok");
+      } catch (e) {
+        setStatus(errMsg(e), "error");
+      }
+      editing = false;
+      render();
+    }
+
+    window.addEventListener("beforeunload", (e) => {
+      if (dirtySkins().length) e.returnValue = false;
+    });
+
+    // ---- Prefix / suffix tags (stored in localStorage) ----
+    const tags = { prefix: [], suffix: [] };
+    let selectedTag = null;   // {kind, t} — last clicked tag, shown with a pink outline
+    try { Object.assign(tags, JSON.parse(localStorage.getItem("tags")) || {}); } catch {}
+    const saveTags = () => { try { localStorage.setItem("tags", JSON.stringify(tags)); } catch {} };
+
+    const hasTag = (name, kind, t) =>
+      kind === "prefix" ? name.startsWith(t + " ") : name.endsWith(" " + t);
+
+    // Toggle: adds the tag if missing, strips it if present.
+    function toggledName(name, kind, t) {
+      if (hasTag(name, kind, t))
+        return kind === "prefix" ? name.slice(t.length + 1) : name.slice(0, -(t.length + 1));
+      return kind === "prefix" ? `${t} ${name}` : `${name} ${t}`;
+    }
+
+    // Click toggles on the selected skins; drop (addOnly) only adds.
+    // With several skins: add to those missing it; if all have it, remove from all.
+    function applyTag(kind, t, skins = selectedSkins(), addOnly = false) {
+      if (!skins.length) return setStatus("Select a skin first.", "error");
+      if (editing) return;
+      const missing = skins.filter((s) => !hasTag(s.name, kind, t));
+      if (addOnly && !missing.length)
+        return setStatus(skins.length === 1 ? `"${skins[0].name}" already has "${t}".` : `All selected skins already have "${t}".`);
+      const targets = missing.length ? missing : skins;
+      renameMany(targets.map((s) => [s, toggledName(s.name, kind, t)]));
+    }
+
+    function renderTags() {
+      for (const kind of ["prefix", "suffix"]) {
+        const box = document.getElementById(kind + "-list");
+        box.innerHTML = "";
+        tags[kind].forEach((t, i) => {
+          const row = document.createElement("div");
+          row.className = "tag";
+          const apply = document.createElement("button");
+          apply.className = "apply" + (selectedTag && selectedTag.kind === kind && selectedTag.t === t ? " sel" : "");
+          apply.textContent = t;
+          apply.title = `Drag onto a skin to add "${t}", or click to toggle it on the selected skin`;
+          apply.onclick = () => { selectedTag = { kind, t }; applyTag(kind, t); renderTags(); };
+          apply.draggable = true;
+          apply.ondragstart = (e) => {
+            e.dataTransfer.setData("application/x-skin-tag", JSON.stringify({ kind, t }));
+            e.dataTransfer.effectAllowed = "copy";
+          };
+          const edit = document.createElement("button");
+          edit.textContent = "✎";
+          edit.title = "Edit tag";
+          edit.onclick = () => {
+            const input = document.createElement("input");
+            input.value = t;
+            input.spellcheck = false;
+            apply.replaceWith(input);
+            input.focus();
+            input.select();
+            let done = false;
+            const finish = (commit) => {
+              if (done) return;
+              done = true;
+              const v = input.value.trim();
+              if (commit && v) { tags[kind][i] = v; saveTags(); selectedTag = null; }
+              renderTags();
+            };
+            input.onkeydown = (e) => {
+              if (e.key === "Enter") finish(true);
+              else if (e.key === "Escape") finish(false);
+              e.stopPropagation();
+            };
+            input.onblur = () => finish(true);
+          };
+          const del = document.createElement("button");
+          del.textContent = "×";
+          del.title = "Remove tag";
+          del.onclick = () => { tags[kind].splice(i, 1); saveTags(); selectedTag = null; renderTags(); };
+          row.append(apply, edit, del);
+          box.appendChild(row);
+        });
+      }
+    }
+
+    // Clicking empty space in the tag panel drops focus from the last-clicked tag.
+    document.getElementById("tags").addEventListener("mousedown", (e) => {
+      if (!e.target.closest("button, input")) { selectedTag = null; renderTags(); }
+    });
+
+    for (const kind of ["prefix", "suffix"]) {
+      const input = document.getElementById(kind + "-add");
+      input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        const v = input.value.trim();
+        if (e.key !== "Enter" || !v) return;
+        if (!tags[kind].includes(v)) { tags[kind].push(v); saveTags(); }
+        input.value = "";
+        renderTags();
+      });
+    }
+
+    async function deleteSkin(skin) {
+      try {
+        const res = await window.skins.delete(skin.id, skin.name);
+        if (res.cancelled) return;
+        allSkins = allSkins.filter((s) => s.id !== skin.id);
+        const dropSkin = (stack) => stack.map((act) => act.filter((a) => a.id !== skin.id)).filter((act) => act.length);
+        undoStack = dropSkin(undoStack);
+        redoStack = dropSkin(redoStack);
+        selectedIds.delete(skin.id);
+        if (selectedId === skin.id) selectedId = null;
+        render();
+        setStatus(`Deleted "${res.name}" — osu! removes it on next start.  (backup: ${res.backup})`, "ok");
+      } catch (e) {
+        setStatus(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), "error");
+      }
+    }
+
+    async function refresh() {
+      if (dirtySkins().length && !confirm("Discard unsaved renames and reload from the database?")) return;
+      setStatus("Loading skins…");
+      undoStack = [];
+      redoStack = [];
+      try {
+        allSkins = (await window.skins.list()).map((s) => ({ ...s, saved: s.name }));
+        render();
+        setStatus("Double-click (or F2) renames — right-click for menu, Del deletes.");
+      } catch (e) {
+        allSkins = [];
+        render();
+        setStatus(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), "error");
+      }
+    }
+
+    // Keyboard: F2 to rename, arrows to move selection (Explorer-style).
+    document.addEventListener("keydown", (e) => {
+      if (editing) return;
+      const vis = visibleSkins();
+      const k = e.key.toLowerCase();
+      if (e.ctrlKey && k === "s") {
+        save();
+        e.preventDefault();
+      } else if (e.ctrlKey && document.activeElement.tagName !== "INPUT" && (k === "y" || (k === "z" && e.shiftKey))) {
+        redo();
+        e.preventDefault();
+      } else if (e.ctrlKey && k === "z" && document.activeElement.tagName !== "INPUT") {
+        undo();
+        e.preventDefault();
+      } else if (e.key === "F2" && selectedId) {
+        const row = [...listEl.children].find((r) => r.dataset && r.dataset.id === selectedId);
+        const skin = allSkins.find((s) => s.id === selectedId);
+        if (row && skin) startEdit(row, skin);
+        e.preventDefault();
+      } else if (e.key === "Delete" && selectedId && document.activeElement.tagName !== "INPUT") {
+        const skin = allSkins.find((s) => s.id === selectedId);
+        if (skin) deleteSkin(skin);
+        e.preventDefault();
+      } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && vis.length && document.activeElement.tagName !== "INPUT") {
+        let idx = vis.findIndex((s) => s.id === selectedId);
+        idx = e.key === "ArrowDown" ? Math.min(idx + 1, vis.length - 1) : Math.max(idx - 1, 0);
+        select(vis[idx].id);
+        const row = [...listEl.children].find((r) => r.dataset && r.dataset.id === selectedId);
+        if (row) row.scrollIntoView({ block: "nearest" });
+        e.preventDefault();
+      }
+    });
+
+    searchEl.addEventListener("input", render);
+    document.getElementById("refresh").addEventListener("click", refresh);
+    document.getElementById("undo").addEventListener("click", undo);
+    document.getElementById("redo").addEventListener("click", redo);
+    document.getElementById("save").addEventListener("click", save);
+    refresh();
+  </script>
+</body>
+</html>
