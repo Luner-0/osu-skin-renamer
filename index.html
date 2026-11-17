@@ -66,6 +66,7 @@
     .hbtn:hover:not(:disabled) { border-color: var(--accent); }
     .hbtn:disabled { opacity: .4; cursor: default; }
     #save:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #16121c; font-weight: 600; }
+    #folder.attention { border-color: var(--accent); color: var(--accent); }
     .row.dirty .name { color: var(--accent); }
     .row.dirty .name::before { content: "● "; font-size: 10px; vertical-align: middle; }
     #count { color: var(--muted); font-size: 13px; margin-left: auto; }
@@ -155,6 +156,7 @@
     <h1>osu!<span>skins</span></h1>
     <input id="search" type="text" placeholder="Filter skins…" spellcheck="false" />
     <button id="refresh" title="Reload from database">⟳ Refresh</button>
+    <button id="folder" class="hbtn" title="osu! folder: auto-detected. Click to choose it yourself.">📁 osu! folder</button>
     <button id="undo" class="hbtn" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
     <button id="redo" class="hbtn" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
     <button id="save" class="hbtn" title="Write all pending renames to osu! (Ctrl+S)" disabled>💾 Save</button>
@@ -518,19 +520,38 @@
       }
     }
 
-    async function refresh() {
-      if (dirtySkins().length && !confirm("Discard unsaved renames and reload from the database?")) return;
+    const folderBtn = document.getElementById("folder");
+
+    async function refresh(skipConfirm = false) {
+      if (!skipConfirm && dirtySkins().length && !confirm("Discard unsaved renames and reload from the database?")) return;
       setStatus("Loading skins…");
       undoStack = [];
       redoStack = [];
+      const custom = await window.skins.getFolder();
+      folderBtn.title = custom
+        ? `osu! folder: ${custom}\nClick to choose a different one.`
+        : "osu! folder: auto-detected. Click to choose it yourself.";
       try {
         allSkins = (await window.skins.list()).map((s) => ({ ...s, saved: s.name }));
+        folderBtn.classList.remove("attention");
         render();
         setStatus("Double-click (or F2) renames — right-click for menu, Del deletes.");
       } catch (e) {
         allSkins = [];
         render();
-        setStatus(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ""), "error");
+        const msg = errMsg(e);
+        const notFound = /database not found/i.test(msg);
+        folderBtn.classList.toggle("attention", notFound);
+        setStatus(notFound ? `${msg} — click 📁 osu! folder to choose where osu! keeps its data.` : msg, "error");
+      }
+    }
+
+    async function chooseFolder() {
+      if (dirtySkins().length && !confirm("Discard unsaved renames and switch osu! folder?")) return;
+      try {
+        if (await window.skins.chooseFolder()) refresh(true);
+      } catch (e) {
+        setStatus(errMsg(e), "error");
       }
     }
 
@@ -568,7 +589,8 @@
     });
 
     searchEl.addEventListener("input", render);
-    document.getElementById("refresh").addEventListener("click", refresh);
+    document.getElementById("refresh").addEventListener("click", () => refresh());
+    folderBtn.addEventListener("click", chooseFolder);
     document.getElementById("undo").addEventListener("click", undo);
     document.getElementById("redo").addEventListener("click", redo);
     document.getElementById("save").addEventListener("click", save);

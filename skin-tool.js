@@ -29,7 +29,30 @@ const Realm = require("realm");
 const DATA_DIR = process.platform === "win32"
   ? process.env.APPDATA
   : process.env.XDG_DATA_HOME || path.join(require("os").homedir(), ".local", "share");
-const DEFAULT_DB = path.join(DATA_DIR, "osu", "client.realm");
+
+// Finds client.realm: honours lazer's "change storage location" setting
+// (storage.ini → FullPath) and the Flatpak data dir, else the default path.
+function findDefaultDb() {
+  const base = path.join(DATA_DIR, "osu");
+  const candidates = [];
+  try {
+    const m = fs.readFileSync(path.join(base, "storage.ini"), "utf8").match(/^\s*FullPath\s*=\s*(.+?)\s*$/m);
+    if (m) candidates.push(m[1]);
+  } catch {}
+  candidates.push(base);
+  if (process.platform === "linux")
+    candidates.push(path.join(require("os").homedir(), ".var", "app", "sh.ppy.osu", "data", "osu"));
+  const found = candidates.find((d) => fs.existsSync(path.join(d, "client.realm")));
+  return path.join(found || base, "client.realm");
+}
+const DEFAULT_DB = findDefaultDb();
+
+// --db accepts the client.realm file or the folder containing it.
+function resolveDb(p) {
+  if (!p) return DEFAULT_DB;
+  try { if (fs.statSync(p).isDirectory()) return path.join(p, "client.realm"); } catch {}
+  return p;
+}
 // Overridable because in a packaged portable exe __dirname lives in an
 // unpack-to-temp directory that is wiped between runs.
 const BACKUP_DIR = process.env.SKIN_TOOL_BACKUP_DIR || path.join(__dirname, "backups");
@@ -95,12 +118,13 @@ function makeBackup(dbPath) {
 
 function openRealm(dbPath) {
   if (!fs.existsSync(dbPath)) {
-    console.error(`Database not found: ${dbPath}`);
+    console.error(`osu! database not found: ${dbPath}`);
     process.exit(1);
   }
   // lazer holds an exclusive lock on client.realm while running; opening it
   // then blocks forever instead of failing, so bail out up front.
-  if (path.resolve(dbPath) === path.resolve(DEFAULT_DB) && osuIsRunning()) {
+  // (Copies under other names, e.g. for testing, skip the check.)
+  if (path.basename(dbPath) === "client.realm" && osuIsRunning()) {
     console.error("osu! is running — close it first, then try again.");
     process.exit(1);
   }
@@ -130,7 +154,7 @@ function getSkins(realm) {
 }
 
 function cmdList(args) {
-  const realm = openRealm(args.db || DEFAULT_DB);
+  const realm = openRealm(resolveDb(args.db));
   const skins = getSkins(realm);
   if (args.json) {
     const out = skins.map((s) => ({ id: String(s.ID), name: s.Name, creator: s.Creator || "" }));
@@ -150,7 +174,7 @@ function cmdSet(args) {
     console.error("Usage: node skin-tool.js set --id <guid> --name <text>");
     process.exit(1);
   }
-  const dbPath = args.db || DEFAULT_DB;
+  const dbPath = resolveDb(args.db);
   if (osuIsRunning()) {
     console.error("osu! is running — close it first, then try again.");
     process.exit(1);
@@ -181,7 +205,7 @@ function cmdDelete(args) {
     console.error("Usage: node skin-tool.js delete --id <guid>");
     process.exit(1);
   }
-  const dbPath = args.db || DEFAULT_DB;
+  const dbPath = resolveDb(args.db);
   if (osuIsRunning()) {
     console.error("osu! is running — close it first, then try again.");
     process.exit(1);
@@ -210,7 +234,7 @@ function cmdDelete(args) {
 
 function cmdExport(args) {
   const outFile = args._[1] || path.join(__dirname, "names.tsv");
-  const realm = openRealm(args.db || DEFAULT_DB);
+  const realm = openRealm(resolveDb(args.db));
   const skins = getSkins(realm);
   const lines = ["# Edit the names in the second column, then run:  node skin-tool.js apply"];
   for (const s of skins) lines.push(`${s.ID}\t${s.Name}`);
@@ -234,7 +258,7 @@ function loadRenamesFromTsv(file) {
 }
 
 function applyRenames(args, planFn) {
-  const dbPath = args.db || DEFAULT_DB;
+  const dbPath = resolveDb(args.db);
   if (osuIsRunning()) {
     console.error("osu! is running — close it first, then try again.");
     process.exit(1);

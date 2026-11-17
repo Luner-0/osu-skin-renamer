@@ -45,8 +45,11 @@ filters the list.
 Only the 2 newest backups are kept. When running from source, backups go to
 `backups/` in the project folder.
 
-**Flatpak lazer** keeps its database in `~/.var/app/sh.ppy.osu/data/osu/`.
-The app can't be pointed there yet; use the CLI with `--db <path>`.
+The app finds osu! automatically, including a custom location set in
+lazer's settings (*Change folder location*, read from `storage.ini`) and
+Flatpak lazer (`~/.var/app/sh.ppy.osu/data/osu`). If it still can't find
+it, click **📁 osu! folder** and pick the folder that contains
+`client.realm`; the app remembers it.
 
 ## Command line
 
@@ -54,8 +57,8 @@ The app can't be pointed there yet; use the CLI with `--db <path>`.
 npm install
 node skin-tool.js list
 ```
-Shows all skins with their IDs. Every command accepts `--db <path>` to use a
-different `client.realm`.
+Shows all skins with their IDs. Every command accepts `--db <path>` (the
+`client.realm` file or the folder containing it) to use a different database.
 
 ### Rename or delete a single skin
 

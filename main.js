@@ -3,6 +3,17 @@ const path = require("path");
 const { execFile } = require("child_process");
 
 const TOOL = path.join(__dirname, "skin-tool.js");
+const fs = require("fs");
+
+// User-chosen osu! data folder, for when auto-detection can't find it.
+const configFile = () => path.join(app.getPath("userData"), "config.json");
+function loadConfig() {
+  try { return JSON.parse(fs.readFileSync(configFile(), "utf8")); } catch { return {}; }
+}
+function saveConfig(cfg) {
+  fs.mkdirSync(path.dirname(configFile()), { recursive: true });
+  fs.writeFileSync(configFile(), JSON.stringify(cfg, null, 2));
+}
 
 // All database access goes through skin-tool.js in a child Node process.
 // Instead of relying on a system Node (which a shared portable exe can't),
@@ -13,6 +24,8 @@ function runTool(args) {
   if (app.isPackaged) {
     env.SKIN_TOOL_BACKUP_DIR = path.join(app.getPath("userData"), "backups");
   }
+  const { osuFolder } = loadConfig();
+  if (osuFolder) args = [...args, "--db", osuFolder];
   return new Promise((resolve, reject) => {
     execFile(
       process.execPath,
@@ -36,10 +49,26 @@ if (shotArg) app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
   ipcMain.handle("skins:list", () => runTool(["list"]));
+  ipcMain.handle("skins:getFolder", () => loadConfig().osuFolder || null);
+  // Pick the osu! data folder (the one holding client.realm). Resolves with
+  // the folder, or null if cancelled.
+  ipcMain.handle("skins:chooseFolder", async (e) => {
+    const cfg = loadConfig();
+    const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), {
+      title: "Choose your osu! data folder (the one containing client.realm)",
+      defaultPath: cfg.osuFolder,
+      properties: ["openDirectory"],
+    });
+    if (canceled || !filePaths[0]) return null;
+    const dir = filePaths[0];
+    if (!fs.existsSync(path.join(dir, "client.realm")))
+      throw new Error(`No client.realm in "${dir}". Pick the osu! data folder: the one with client.realm, files/ and storage.ini in it.`);
+    saveConfig({ ...cfg, osuFolder: dir });
+    return dir;
+  });
   // Batch save: one DB write + one backup for all pending renames,
   // via skin-tool's `apply` (GUID <TAB> name file).
   ipcMain.handle("skins:save", async (_e, renames) => {
-    const fs = require("fs");
     const file = path.join(app.getPath("temp"), `skin-renames-${process.pid}.tsv`);
     fs.writeFileSync(file, renames.map((r) => `${r.id}\t${r.name}`).join("\n"), "utf8");
     try {
