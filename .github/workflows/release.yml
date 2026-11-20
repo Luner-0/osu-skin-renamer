@@ -1,9 +1,7 @@
 name: Release
 
-# Push a tag like v1.1.0 → builds the Windows installer and the Linux
-# packages (Arch .pacman + AppImage) and attaches them to that release.
-# Linux must be built on Linux: Realm downloads its native binary for the
-# platform it's installed on.
+# Push a tag like v2.0.0 → builds the Windows exe and the Linux binary and
+# attaches them to that release. (Move to .github/workflows/release.yml.)
 on:
   push:
     tags: ["v*"]
@@ -27,23 +25,24 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            args: --win
-            files: dist/*.exe
+            file: target/release/osu-skin-renamer.exe
           - os: ubuntu-latest
-            args: --linux
-            files: dist/*.pacman dist/*.AppImage
+            file: target/release/osu-skin-renamer
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+      # realm-core v20.1.2 = the core inside osu!lazer's Realm .NET 20.1.0.
+      - run: |
+          git clone --depth 1 --branch v20.1.2 https://github.com/realm/realm-core.git vendor/realm-core
+          git -C vendor/realm-core submodule update --init --depth 1 src/external/sha-1 src/external/sha-2
+        shell: bash
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
-      - run: npm ci
-      - run: npx electron-builder ${{ matrix.args }} --publish never
-      - run: gh release upload "$TAG" ${{ matrix.files }} --clobber
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - run: |
+          cp "${{ matrix.file }}" "osu-skin-renamer-$TAG-${{ runner.os }}${{ runner.os == 'Windows' && '.exe' || '' }}"
+          gh release upload "$TAG" osu-skin-renamer-$TAG-* --clobber
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

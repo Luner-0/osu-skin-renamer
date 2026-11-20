@@ -12,9 +12,8 @@ Grab the latest build from [Releases](https://github.com/Luner-0/osu-skin-rename
 
 | File | Platform |
 |---|---|
-| `osu-skin-renamer-Setup-<version>.exe` | Windows installer. Run once, then start the app from the desktop / Start-menu shortcut. Windows SmartScreen may warn because the installer is unsigned (*More info → Run anyway*). |
-| `osu-skin-renamer-<version>.pacman` | Arch Linux: `sudo pacman -U osu-skin-renamer-*.pacman` |
-| `osu-skin-renamer-<version>.AppImage` | Any Linux distro: `chmod +x osu-skin-renamer-*.AppImage && ./osu-skin-renamer-*.AppImage` |
+| `osu-skin-renamer-<version>-Windows.exe` | Windows: a single ~8 MB exe, no install needed. Uses the WebView2 runtime that ships with Windows 10/11. SmartScreen may warn because it's unsigned (*More info → Run anyway*). |
+| `osu-skin-renamer-<version>-Linux` | Linux: `chmod +x osu-skin-renamer-*-Linux && ./osu-skin-renamer-*-Linux`. Needs `webkit2gtk-4.1` (Arch: `sudo pacman -S webkit2gtk-4.1`). |
 
 ## Using the app
 
@@ -40,10 +39,9 @@ filters the list.
 | | Windows | Linux |
 |---|---|---|
 | Skin database | `%APPDATA%\osu\client.realm` | `~/.local/share/osu/client.realm` (or `$XDG_DATA_HOME/osu`) |
-| Backups (installed app) | `%APPDATA%\osu-skin-renamer\backups` | `~/.config/osu-skin-renamer/backups` |
+| Backups | `%APPDATA%\osu-skin-renamer\backups` | `~/.config/osu-skin-renamer/backups` |
 
-Only the 2 newest backups are kept. When running from source, backups go to
-`backups/` in the project folder.
+Only the 2 newest backups are kept.
 
 The app finds osu! automatically, including a custom location set in
 lazer's settings (*Change folder location*, read from `storage.ini`) and
@@ -53,9 +51,10 @@ it, click **📁 osu! folder** and pick the folder that contains
 
 ## Command line
 
+Run the exe with a command instead of no arguments:
+
 ```
-npm install
-node skin-tool.js list
+osu-skin-renamer list
 ```
 Shows all skins with their IDs. Every command accepts `--db <path>` (the
 `client.realm` file or the folder containing it) to use a different database.
@@ -63,50 +62,58 @@ Shows all skins with their IDs. Every command accepts `--db <path>` (the
 ### Rename or delete a single skin
 
 ```
-node skin-tool.js set --id <guid> --name "New name"
-node skin-tool.js delete --id <guid>
+osu-skin-renamer set --id <guid> --name "New name"
+osu-skin-renamer delete --id <guid>
 ```
 
 ### Bulk rename from a list (recommended)
 
 ```
-node skin-tool.js export
+osu-skin-renamer export
 ```
 Writes `names.tsv` (ID → name). Edit the names in the second column
 (tab-separated); lines you don't want to change can be deleted or left as
 they are. Then:
 
 ```
-node skin-tool.js apply --dry-run   # preview
-node skin-tool.js apply             # apply
+osu-skin-renamer apply --dry-run   # preview
+osu-skin-renamer apply             # apply
 ```
 
 ### Bulk rename with a regex
 
 ```
-node skin-tool.js rename --match "^Aristia" --replace "ARST" --dry-run
-node skin-tool.js rename --match "\s+$" --replace ""        # strip trailing spaces
+osu-skin-renamer rename --match "^Aristia" --replace "ARST" --dry-run
+osu-skin-renamer rename --match "\s+$" --replace ""        # strip trailing spaces
 ```
 
 ## Building from source
 
+Written in Rust. The UI is `src/index.html` shown in the system webview
+(WebView2 / WebKitGTK); the database is accessed through realm-core's C API,
+compiled from source and linked statically.
+
 ```
-npm install
-npm start              # run the app
-npm run dist           # Windows installer → dist/
-npm run dist:linux     # Arch .pacman + AppImage → dist/ (build on Linux)
+git clone --depth 1 --branch v20.1.2 https://github.com/realm/realm-core.git vendor/realm-core
+git -C vendor/realm-core submodule update --init --depth 1 src/external/sha-1 src/external/sha-2
+cargo build --release      # → target/release/osu-skin-renamer(.exe)
+cargo test --release
 ```
 
-Linux packages must be built on Linux, because Realm downloads its native
-binary for the OS it's installed on. Pushing a tag like `v1.2.0` runs a
-GitHub Actions workflow that builds the Windows installer and Linux packages
-and attaches them to the release.
+Needs CMake and a C++ compiler (MSVC on Windows). On Linux also the
+`webkit2gtk-4.1` and `gtk3` dev packages.
+
+realm-core **v20.1.2** is the core inside osu!lazer's Realm .NET 20.1.0. If
+lazer upgrades Realm, bump this tag (here and in the release workflow).
+
+Pushing a tag like `v2.0.0` runs a GitHub Actions workflow that builds the
+Windows exe and the Linux binary and attaches them to the release.
 
 ## Safety
 
 - Built-in skins (Argon, Triangles, Classic, …) are never touched.
-- `disableFormatUpgrade` stops the database from being upgraded to a format
-  lazer can no longer read. If lazer uses a newer format than this tool's
-  Realm SDK, the tool stops with a clear error and can't break anything.
+- Format upgrades are disabled, so the database can never be upgraded to a
+  format lazer can no longer read. If lazer uses a newer format than this
+  tool's realm-core, the tool stops with a clear error and can't break anything.
 - To restore a backup: close osu!, then copy the newest file from the
   backups folder back to `client.realm` (see *Where things live*).

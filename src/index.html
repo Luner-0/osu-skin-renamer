@@ -149,6 +149,14 @@
     .tag input, .add input { flex: 1; min-width: 0; outline: none; user-select: text; }
     .tag input:focus, .add input:focus { border-color: var(--accent); }
     .add { display: flex; margin-top: 6px; }
+    #menu {
+      position: fixed; z-index: 10; min-width: 140px; padding: 4px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    }
+    #menu div { padding: 6px 12px; border-radius: 4px; cursor: default; }
+    #menu div:hover { background: var(--row-selected); }
+    #menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
   </style>
 </head>
 <body>
@@ -179,7 +187,57 @@
   </main>
   <div id="status">Double-click (or F2) renames — right-click for menu, Del deletes.</div>
 
+  <div id="menu" hidden><div data-act="rename">Rename</div><hr /><div data-act="delete">Delete</div></div>
   <script>
+    // Bridge to the Rust side (gui.rs): postMessage out, __reply back.
+    const pending = new Map();
+    let callId = 0;
+    window.__reply = (id, ok, val) => {
+      const p = pending.get(id);
+      pending.delete(id);
+      ok ? p.resolve(val) : p.reject(new Error(val));
+    };
+    const call = (cmd, ...args) => new Promise((resolve, reject) => {
+      pending.set(++callId, { resolve, reject });
+      window.ipc.postMessage(JSON.stringify({ id: callId, cmd, args }));
+    });
+    window.skins = {
+      list: () => call("list"),
+      save: (renames) => call("save", renames),
+      getFolder: () => call("getFolder"),
+      chooseFolder: () => call("chooseFolder"),
+      delete: (id) => call("delete", id),
+    };
+
+    // Right-click menu; resolves with "rename" / "delete", or null when dismissed.
+    const menuEl = document.getElementById("menu");
+    function contextMenu(x, y) {
+      return new Promise((resolve) => {
+        menuEl.hidden = false;
+        menuEl.style.left = Math.min(x, innerWidth - menuEl.offsetWidth) + "px";
+        menuEl.style.top = Math.min(y, innerHeight - menuEl.offsetHeight) + "px";
+        const close = (e) => {
+          if (e.type === "keydown" && e.key !== "Escape") return;
+          menuEl.hidden = true;
+          removeEventListener("mousedown", close, true);
+          removeEventListener("keydown", close, true);
+          removeEventListener("blur", close);
+          const act = e.type === "mousedown" && e.button === 0 && e.target.dataset ? e.target.dataset.act : null;
+          setTimeout(() => resolve(act || null)); // after the mousedown that closed it
+          if (act) e.stopPropagation();
+        };
+        addEventListener("mousedown", close, true);
+        addEventListener("keydown", close, true);
+        addEventListener("blur", close);
+      });
+    }
+
+    // Window close button (sent by gui.rs): ask first if renames are unsaved.
+    window.__tryClose = () => {
+      if (!dirtySkins().length || confirm("You have unsaved renames. Close anyway and lose them?"))
+        window.ipc.postMessage(JSON.stringify({ cmd: "quit" }));
+    };
+
     const listEl = document.getElementById("list");
     const searchEl = document.getElementById("search");
     const countEl = document.getElementById("count");
@@ -257,7 +315,7 @@
           ev.preventDefault();
           if (editing) return;
           if (!selectedIds.has(s.id)) select(s.id);
-          const action = await window.skins.contextMenu();
+          const action = await contextMenu(ev.clientX, ev.clientY);
           if (action === "rename") {
             startEdit(row, s);
           } else if (action === "delete") {
@@ -504,9 +562,9 @@
     }
 
     async function deleteSkin(skin) {
+      if (!confirm(`Delete skin "${skin.name}"?\n\nThe skin is marked for deletion and disappears when osu! next starts. A backup of client.realm is created first.`)) return;
       try {
-        const res = await window.skins.delete(skin.id, skin.name);
-        if (res.cancelled) return;
+        const res = await window.skins.delete(skin.id);
         allSkins = allSkins.filter((s) => s.id !== skin.id);
         const dropSkin = (stack) => stack.map((act) => act.filter((a) => a.id !== skin.id)).filter((act) => act.length);
         undoStack = dropSkin(undoStack);
