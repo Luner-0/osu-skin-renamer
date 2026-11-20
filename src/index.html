@@ -5,103 +5,161 @@
   <title>osu! skin renamer</title>
   <style>
     :root {
-      --bg: #16121c;
-      --panel: #1f1926;
-      --row-hover: #2a2233;
-      --row-selected: #3d2a52;
-      --accent: #ff66aa;
-      --text: #eee6f5;
-      --muted: #9b8fae;
-      --border: #322a3d;
+      color-scheme: dark;
+      --bg: #0f1012;
+      --surface: #151619;
+      --raised: #1c1d21;
+      --hover: #1e2024;
+      --sel: #1f2638;
+      --border: #24262b;
+      --border-strong: #33363c;
+      --text: #e6e7e9;
+      --muted: #8b9098;
+      --faint: #5f646c;
+      --accent: #8ea6ff;
+      --accent-ink: #0f1012;
+      --danger: #f07a7d;
+      --ok: #6ccf98;
+      --ring: rgba(142, 166, 255, .22);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        color-scheme: light;
+        --bg: #f7f7f8;
+        --surface: #ffffff;
+        --raised: #ffffff;
+        --hover: #f0f1f3;
+        --sel: #e6ebff;
+        --border: #e4e5e9;
+        --border-strong: #d2d4da;
+        --text: #1b1c1f;
+        --muted: #6a6f78;
+        --faint: #9ba0a8;
+        --accent: #3b5bdb;
+        --accent-ink: #ffffff;
+        --danger: #d9363e;
+        --ok: #1f9d55;
+        --ring: rgba(59, 91, 219, .2);
+      }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
       background: var(--bg);
       color: var(--text);
-      font: 14px "Segoe UI", system-ui, sans-serif;
+      font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
       display: flex;
       flex-direction: column;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
+    svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    button { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    input:focus-visible { outline: none; }
+    ::placeholder { color: var(--faint); }
+    ::-webkit-scrollbar { width: 12px; height: 12px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border: 3px solid transparent; border-radius: 6px; background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background-color: var(--faint); }
+
+    /* ---- Toolbar ---- */
     header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      background: var(--panel);
+      gap: 6px;
+      height: 48px;
+      padding: 0 12px 0 16px;
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
     }
-    header h1 { font-size: 16px; font-weight: 600; }
-    header h1 span { color: var(--accent); }
+    header h1 { font-size: 13px; font-weight: 600; margin-right: 14px; white-space: nowrap; }
+    header h1 span { color: var(--muted); font-weight: 400; }
+    .search { position: relative; flex: 1; max-width: 360px; }
+    .search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
     #search {
-      flex: 1;
-      max-width: 340px;
-      padding: 6px 10px;
+      width: 100%;
+      height: 30px;
+      padding: 0 10px 0 31px;
       border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg);
-      color: var(--text);
-      outline: none;
-    }
-    #search:focus { border-color: var(--accent); }
-    #refresh {
-      padding: 6px 14px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg);
-      color: var(--text);
-      cursor: pointer;
-    }
-    #refresh:hover { border-color: var(--accent); }
-    .hbtn {
-      padding: 6px 12px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 7px;
       background: var(--bg);
       color: var(--text);
       font: inherit;
-      cursor: pointer;
+      outline: none;
+      user-select: text;
     }
-    .hbtn:hover:not(:disabled) { border-color: var(--accent); }
-    .hbtn:disabled { opacity: .4; cursor: default; }
-    #save:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #16121c; font-weight: 600; }
-    #folder.attention { border-color: var(--accent); color: var(--accent); }
-    .row.dirty .name { color: var(--accent); }
-    .row.dirty .name::before { content: "● "; font-size: 10px; vertical-align: middle; }
-    #count { color: var(--muted); font-size: 13px; margin-left: auto; }
-    #list { flex: 1; overflow-y: auto; }
-    .row {
-      display: flex;
+    #search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+    .spacer { flex: 1; }
+    .sep { width: 1px; height: 18px; background: var(--border-strong); margin: 0 4px; }
+    .btn {
+      display: inline-flex;
       align-items: center;
-      gap: 12px;
-      padding: 7px 16px;
-      cursor: default;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
+      justify-content: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      background: var(--raised);
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .12s, border-color .12s, color .12s;
     }
-    .row:hover { background: var(--row-hover); }
-    .row.selected { background: var(--row-selected); }
-    .row.drop { background: var(--row-selected); box-shadow: inset 0 0 0 1px var(--accent); }
-    .tag .apply { cursor: grab; }
+    .btn:hover:not(:disabled) { background: var(--hover); }
+    .btn:disabled { opacity: .4; cursor: default; }
+    .btn.icon { width: 30px; padding: 0; border-color: transparent; background: transparent; color: var(--muted); }
+    .btn.icon:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    .btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+    #save { min-width: 76px; margin-left: 6px; }
+    #save:disabled { opacity: 1; background: var(--raised); border-color: var(--border-strong); color: var(--faint); font-weight: 400; }
+    #folder.attention { color: var(--accent); border-color: var(--accent); background: var(--sel); }
+
+    /* ---- Skin list ---- */
+    main { flex: 1; display: flex; min-height: 0; }
+    .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .cols, .row { display: flex; align-items: center; gap: 16px; }
+    .cols {
+      height: 30px;
+      flex-shrink: 0;
+      padding: 0 16px 0 18px;
+      border-bottom: 1px solid var(--border);
+      color: var(--faint);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .cols .c-name { flex: 1; }
+    .cols .c-creator, .row .creator { width: 34%; max-width: 300px; flex-shrink: 0; }
+    #list { flex: 1; overflow-y: auto; outline: none; padding: 4px 0; }
+    .row { height: 32px; margin: 0 6px; padding: 0 10px 0 12px; border-radius: 6px; cursor: default; }
+    .row:hover { background: var(--hover); }
+    .row.selected { background: var(--sel); }
+    #list:focus .row.selected { box-shadow: inset 2px 0 0 var(--accent); }
+    .row.drop { background: var(--sel); box-shadow: inset 0 0 0 1px var(--accent); }
     .row .name {
       flex: 1;
       min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      padding: 2px 6px;
-      margin: -2px -6px;
-      border-radius: 4px;
+      padding: 3px 7px;
+      margin: -3px -7px;
+      border-radius: 5px;
     }
-    .row .creator {
-      width: 320px;
-      color: var(--muted);
-      font-size: 12.5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      flex-shrink: 0;
+    .row.dirty .name::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin: 0 8px 1px 0;
+      border-radius: 50%;
+      background: var(--accent);
+      vertical-align: middle;
     }
+    .row .creator { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .row input.editor {
       flex: 1;
       min-width: 0;
@@ -109,101 +167,161 @@
       color: var(--text);
       background: var(--bg);
       border: 1px solid var(--accent);
-      border-radius: 4px;
-      padding: 2px 6px;
-      margin: -2px -6px;
+      border-radius: 5px;
+      padding: 3px 7px;
+      margin: -3px -7px;
+      outline: none;
+      box-shadow: 0 0 0 3px var(--ring);
+      user-select: text;
+    }
+    .empty { padding: 56px 24px; text-align: center; color: var(--faint); }
+
+    /* ---- Tag sidebar ---- */
+    #tags {
+      width: 248px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      padding: 14px 10px;
+    }
+    #tags h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin: 0 8px 6px; }
+    #tags section + section { margin-top: 22px; }
+    .tag { display: flex; align-items: center; gap: 2px; padding-right: 2px; border-radius: 6px; }
+    .tag:hover { background: var(--hover); }
+    .tag .apply {
+      flex: 1;
+      min-width: 0;
+      height: 30px;
+      padding: 0 8px;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: none;
+      border: 0;
+      border-radius: 6px;
+      cursor: grab;
+    }
+    .tag .apply.sel { background: var(--sel); color: var(--accent); font-weight: 600; }
+    .tag .act {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border: 0;
+      border-radius: 5px;
+      background: none;
+      color: var(--faint);
+      cursor: pointer;
+      opacity: 0;
+    }
+    .tag .act svg { width: 13px; height: 13px; }
+    .tag:hover .act, .tag .act:focus-visible { opacity: 1; }
+    .tag .act:hover { color: var(--text); background: var(--border); }
+    .tag .act.del:hover { color: var(--danger); }
+    .tag input, .add input {
+      flex: 1;
+      min-width: 0;
+      height: 30px;
+      padding: 0 8px;
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
       outline: none;
       user-select: text;
     }
-    #status {
-      padding: 8px 16px;
-      background: var(--panel);
+    .add { display: flex; margin-top: 4px; }
+    .add input { background: transparent; border: 1px dashed var(--border-strong); }
+    .add input:hover { border-color: var(--faint); }
+    .add input:focus { background: var(--bg); border: 1px solid var(--accent); }
+
+    /* ---- Status bar ---- */
+    footer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 30px;
+      padding: 0 16px;
+      background: var(--surface);
       border-top: 1px solid var(--border);
       color: var(--muted);
-      font-size: 12.5px;
-      min-height: 34px;
+      font-size: 12px;
     }
-    #status.error { color: #ff7a7a; }
-    #status.ok { color: #7ae0a0; }
-    .empty { padding: 40px; text-align: center; color: var(--muted); }
-    main { flex: 1; display: flex; min-height: 0; }
-    #tags {
-      width: 240px;
-      flex-shrink: 0;
-      overflow-y: auto;
-      background: var(--panel);
-      border-left: 1px solid var(--border);
-      padding: 12px;
-    }
-    #tags h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 4px 0 8px; }
-    #tags section + section { margin-top: 18px; }
-    .tag { display: flex; gap: 4px; margin-bottom: 4px; }
-    .tag button, .tag input, .add input {
-      font: inherit; color: var(--text); background: var(--bg);
-      border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px;
-    }
-    .tag button { cursor: pointer; }
-    .tag button:hover { border-color: var(--accent); }
-    .tag .apply { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tag .apply.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-    .tag input, .add input { flex: 1; min-width: 0; outline: none; user-select: text; }
-    .tag input:focus, .add input:focus { border-color: var(--accent); }
-    .add { display: flex; margin-top: 6px; }
+    #status { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #status.error { color: var(--danger); }
+    #status.ok { color: var(--ok); }
+    #count { color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* ---- Context menu + dialog ---- */
     #menu {
-      position: fixed; z-index: 10; min-width: 140px; padding: 4px;
-      background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.5);
+      position: fixed; z-index: 10; min-width: 168px; padding: 4px;
+      background: var(--raised); border: 1px solid var(--border-strong); border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 2px 6px rgba(0,0,0,.2);
     }
-    #menu div { padding: 6px 12px; border-radius: 4px; cursor: default; }
-    #menu div:hover { background: var(--row-selected); }
+    #menu div { padding: 6px 10px; border-radius: 5px; cursor: default; }
+    #menu div:hover { background: var(--hover); }
+    #menu div[data-act="delete"] { color: var(--danger); }
+    #menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
     #meta {
-      margin: auto; width: 420px; padding: 18px; color: var(--text);
-      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      margin: auto; width: 400px; padding: 20px; color: var(--text);
+      background: var(--raised); border: 1px solid var(--border-strong); border-radius: 12px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.4);
     }
-    #meta::backdrop { background: rgba(0,0,0,.5); }
-    #meta h2 { font-size: 15px; margin-bottom: 14px; }
-    #meta label { display: block; color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+    #meta::backdrop { background: rgba(0,0,0,.45); }
+    #meta h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+    #meta label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 12px; }
     #meta input {
-      display: block; width: 100%; margin-top: 4px; padding: 6px 8px; font: inherit; font-size: 14px;
-      color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      display: block; width: 100%; height: 32px; margin-top: 5px; padding: 0 10px; font: inherit; font-size: 13px;
+      color: var(--text); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 7px;
       outline: none; user-select: text;
     }
-    #meta input:focus { border-color: var(--accent); }
-    #meta dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; margin: 6px 0 16px; }
-    #meta dt { color: var(--muted); }
-    #meta dd { user-select: text; overflow-wrap: anywhere; }
+    #meta input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+    #meta dl {
+      display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 12px; margin: 4px 0 20px;
+      padding: 10px 12px; background: var(--bg); border-radius: 7px;
+    }
+    #meta dt { color: var(--faint); }
+    #meta dd { color: var(--muted); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 11.5px; user-select: text; overflow-wrap: anywhere; }
     #meta .buttons { display: flex; flex-direction: row-reverse; gap: 8px; }
-    #meta .primary { background: var(--accent); border-color: var(--accent); color: #16121c; font-weight: 600; }
-    #menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
   </style>
 </head>
 <body>
   <header>
-    <h1>osu!<span>skins</span></h1>
-    <input id="search" type="text" placeholder="Filter skins…" spellcheck="false" />
-    <button id="refresh" title="Reload from database">⟳ Refresh</button>
-    <button id="folder" class="hbtn" title="osu! folder: auto-detected. Click to choose it yourself.">📁 osu! folder</button>
-    <button id="undo" class="hbtn" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
-    <button id="redo" class="hbtn" title="Redo (Ctrl+Y)" disabled>↷ Redo</button>
-    <button id="save" class="hbtn" title="Write all pending renames to osu! (Ctrl+S)" disabled>💾 Save</button>
-    <div id="count"></div>
+    <h1>osu! <span>skin renamer</span></h1>
+    <label class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="text" placeholder="Filter by name or creator" spellcheck="false" />
+    </label>
+    <div class="spacer"></div>
+    <button id="refresh" class="btn icon" title="Reload from database"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></svg></button>
+    <button id="folder" class="btn icon" title="osu! folder: auto-detected. Click to choose it yourself."><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+    <div class="sep"></div>
+    <button id="undo" class="btn icon" title="Undo (Ctrl+Z)" disabled><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+    <button id="redo" class="btn icon" title="Redo (Ctrl+Y)" disabled><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+    <button id="save" class="btn primary" title="Write all pending renames to osu! (Ctrl+S)" disabled>Save</button>
   </header>
   <main>
-    <div id="list" tabindex="0"></div>
+    <div class="pane">
+      <div class="cols"><span class="c-name">Name</span><span class="c-creator">Creator</span></div>
+      <div id="list" tabindex="0"></div>
+    </div>
     <aside id="tags">
       <section>
         <h2>Prefix</h2>
         <div id="prefix-list"></div>
-        <div class="add"><input id="prefix-add" placeholder="Add prefix tag… (Enter)" spellcheck="false" /></div>
+        <div class="add"><input id="prefix-add" placeholder="Add prefix…" spellcheck="false" /></div>
       </section>
       <section>
         <h2>Suffix</h2>
         <div id="suffix-list"></div>
-        <div class="add"><input id="suffix-add" placeholder="Add suffix tag… (Enter)" spellcheck="false" /></div>
+        <div class="add"><input id="suffix-add" placeholder="Add suffix…" spellcheck="false" /></div>
       </section>
     </aside>
   </main>
-  <div id="status">Double-click (or F2) renames — right-click for menu, Del deletes.</div>
+  <footer><div id="status">Double-click or F2 to rename · right-click for more · Del deletes</div><div id="count"></div></footer>
 
   <div id="menu" hidden><div data-act="rename">Rename</div><div data-act="meta">Edit metadata…</div><hr /><div data-act="delete">Delete</div></div>
   <dialog id="meta">
@@ -214,8 +332,8 @@
       <dl><dt>ID</dt><dd id="meta-id"></dd><dt>Type</dt><dd id="meta-type"></dd></dl>
       <div class="buttons">
         <!-- Apply first so Enter submits it; row-reverse puts it on the right. -->
-        <button value="ok" class="hbtn primary">Apply</button>
-        <button value="cancel" formnovalidate class="hbtn">Cancel</button>
+        <button value="ok" class="btn primary">Apply</button>
+        <button value="cancel" formnovalidate class="btn">Cancel</button>
       </div>
     </form>
   </dialog>
@@ -458,7 +576,7 @@
       document.getElementById("redo").disabled = !redoStack.length;
       const save = document.getElementById("save");
       save.disabled = !n;
-      save.textContent = n ? `💾 Save (${n})` : "💾 Save";
+      save.textContent = n ? `Save ${n}` : "Save";
     }
 
     function setField(a, key) {
@@ -573,7 +691,8 @@
             e.dataTransfer.effectAllowed = "copy";
           };
           const edit = document.createElement("button");
-          edit.textContent = "✎";
+          edit.className = "act";
+          edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>';
           edit.title = "Edit tag";
           edit.onclick = () => {
             const input = document.createElement("input");
@@ -598,7 +717,8 @@
             input.onblur = () => finish(true);
           };
           const del = document.createElement("button");
-          del.textContent = "×";
+          del.className = "act del";
+          del.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
           del.title = "Remove tag";
           del.onclick = () => { tags[kind].splice(i, 1); saveTags(); selectedTag = null; renderTags(); };
           row.append(apply, edit, del);
@@ -656,14 +776,14 @@
         allSkins = (await window.skins.list()).map((s) => ({ ...s, saved: s.name, savedCreator: s.creator }));
         folderBtn.classList.remove("attention");
         render();
-        setStatus("Double-click (or F2) renames — right-click for menu, Del deletes.");
+        setStatus("Double-click or F2 to rename · right-click for more · Del deletes");
       } catch (e) {
         allSkins = [];
         render();
         const msg = errMsg(e);
         const notFound = /database not found/i.test(msg);
         folderBtn.classList.toggle("attention", notFound);
-        setStatus(notFound ? `${msg} — click 📁 osu! folder to choose where osu! keeps its data.` : msg, "error");
+        setStatus(notFound ? `${msg} — click the folder button (top right) to choose where osu! keeps its data.` : msg, "error");
       }
     }
 

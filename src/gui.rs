@@ -100,7 +100,7 @@ pub fn run() {
                 .unwrap()
         })
         .with_url("app://localhost/")
-        .with_background_color((0x16, 0x12, 0x1c, 0xff))
+        .with_background_color((0x0f, 0x10, 0x12, 0xff))
         .with_ipc_handler(move |req| {
             let _ = proxy.send_event(req.into_body());
         });
