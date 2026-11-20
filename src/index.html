@@ -156,6 +156,24 @@
     }
     #menu div { padding: 6px 12px; border-radius: 4px; cursor: default; }
     #menu div:hover { background: var(--row-selected); }
+    #meta {
+      margin: auto; width: 420px; padding: 18px; color: var(--text);
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    }
+    #meta::backdrop { background: rgba(0,0,0,.5); }
+    #meta h2 { font-size: 15px; margin-bottom: 14px; }
+    #meta label { display: block; color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+    #meta input {
+      display: block; width: 100%; margin-top: 4px; padding: 6px 8px; font: inherit; font-size: 14px;
+      color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      outline: none; user-select: text;
+    }
+    #meta input:focus { border-color: var(--accent); }
+    #meta dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; margin: 6px 0 16px; }
+    #meta dt { color: var(--muted); }
+    #meta dd { user-select: text; overflow-wrap: anywhere; }
+    #meta .buttons { display: flex; flex-direction: row-reverse; gap: 8px; }
+    #meta .primary { background: var(--accent); border-color: var(--accent); color: #16121c; font-weight: 600; }
     #menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
   </style>
 </head>
@@ -187,7 +205,20 @@
   </main>
   <div id="status">Double-click (or F2) renames — right-click for menu, Del deletes.</div>
 
-  <div id="menu" hidden><div data-act="rename">Rename</div><hr /><div data-act="delete">Delete</div></div>
+  <div id="menu" hidden><div data-act="rename">Rename</div><div data-act="meta">Edit metadata…</div><hr /><div data-act="delete">Delete</div></div>
+  <dialog id="meta">
+    <form method="dialog">
+      <h2>Skin metadata</h2>
+      <label>Name <input name="name" required spellcheck="false" /></label>
+      <label>Creator <input name="creator" spellcheck="false" /></label>
+      <dl><dt>ID</dt><dd id="meta-id"></dd><dt>Type</dt><dd id="meta-type"></dd></dl>
+      <div class="buttons">
+        <!-- Apply first so Enter submits it; row-reverse puts it on the right. -->
+        <button value="ok" class="hbtn primary">Apply</button>
+        <button value="cancel" formnovalidate class="hbtn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
   <script>
     // Bridge to the Rust side (gui.rs): postMessage out, __reply back.
     const pending = new Map();
@@ -275,7 +306,7 @@
       }
       for (const s of vis) {
         const row = document.createElement("div");
-        row.className = "row" + (selectedIds.has(s.id) ? " selected" : "") + (s.name !== s.saved ? " dirty" : "");
+        row.className = "row" + (selectedIds.has(s.id) ? " selected" : "") + (isDirty(s) ? " dirty" : "");
         row.dataset.id = s.id;
 
         const name = document.createElement("div");
@@ -286,12 +317,12 @@
         const creator = document.createElement("div");
         creator.className = "creator";
         creator.textContent = s.creator ? "by " + s.creator : "";
-        creator.title = s.creator;
+        creator.title = s.creator !== s.savedCreator ? `${s.creator}\n(unsaved — was "${s.savedCreator}")` : s.creator;
 
         row.append(name, creator);
         row.addEventListener("mousedown", (e) => {
           if (e.button !== 0 && selectedIds.has(s.id)) return; // right-click keeps multi-selection
-          select(s.id, e.altKey);
+          select(s.id, e.ctrlKey || e.altKey);
         });
         // Drop a tag from the sidebar onto a skin to add it.
         row.addEventListener("dragover", (e) => {
@@ -318,6 +349,8 @@
           const action = await contextMenu(ev.clientX, ev.clientY);
           if (action === "rename") {
             startEdit(row, s);
+          } else if (action === "meta") {
+            editMetadata(s);
           } else if (action === "delete") {
             await deleteSkin(s);
           }
@@ -327,7 +360,7 @@
     }
 
     // selectedId is the primary skin (F2 / Delete / arrows); selectedIds is
-    // the whole selection, grown with Alt+click.
+    // the whole selection, grown with Ctrl+click (or Alt+click).
     function select(id, add = false) {
       if (editing) return;
       if (!add) {
@@ -384,12 +417,40 @@
 
     const errMsg = (e) => e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 
-    // ---- Pending renames + undo/redo ----
-    // Renames only change skin.name locally; skin.saved is what's in the DB.
-    // Save writes every skin where name !== saved in one batch.
-    let undoStack = [];   // [[{id, from, to}, …]] — one entry per user action
+    // ---- Metadata editor (right-click → Edit metadata…) ----
+    const metaEl = document.getElementById("meta");
+    let metaSkin = null;
+    function editMetadata(skin) {
+      metaSkin = skin;
+      metaEl.querySelector('[name="name"]').value = skin.name;
+      metaEl.querySelector('[name="creator"]').value = skin.creator;
+      document.getElementById("meta-id").textContent = skin.id;
+      document.getElementById("meta-type").textContent = skin.type || "—";
+      editing = true;
+      metaEl.showModal();
+    }
+    metaEl.addEventListener("close", () => {
+      editing = false;
+      const f = new FormData(metaEl.querySelector("form"));
+      if (metaEl.returnValue === "ok" && metaSkin) {
+        const name = f.get("name").trim();
+        changeMany([
+          ...(name ? [[metaSkin, "name", name]] : []),
+          [metaSkin, "creator", f.get("creator").trim()],
+        ]);
+      }
+      metaEl.returnValue = "";
+      metaSkin = null;
+      listEl.focus();
+    });
+
+    // ---- Pending changes + undo/redo ----
+    // Edits only change skin.name / skin.creator locally; skin.saved /
+    // skin.savedCreator are what's in the DB. Save writes every changed skin in one batch.
+    let undoStack = [];   // [[{id, field, from, to}, …]] — one entry per user action
     let redoStack = [];
-    const dirtySkins = () => allSkins.filter((s) => s.name !== s.saved);
+    const isDirty = (s) => s.name !== s.saved || s.creator !== s.savedCreator;
+    const dirtySkins = () => allSkins.filter(isDirty);
 
     function updateButtons() {
       const n = dirtySkins().length;
@@ -400,36 +461,38 @@
       save.textContent = n ? `💾 Save (${n})` : "💾 Save";
     }
 
-    function setName(id, name) {
-      const skin = allSkins.find((s) => s.id === id);
-      if (skin) skin.name = name;
+    function setField(a, key) {
+      const skin = allSkins.find((s) => s.id === a.id);
+      if (skin) skin[a.field] = a[key];
     }
 
     const renameSkin = (skin, newName) => renameMany([[skin, newName]]);
+    const renameMany = (pairs) => changeMany(pairs.map(([s, n]) => [s, "name", n]));
 
-    // pairs: [[skin, newName], …] — recorded as a single undo step.
-    function renameMany(pairs) {
-      const action = pairs
-        .filter(([s, n]) => n !== s.name)
-        .map(([s, n]) => ({ id: s.id, from: s.name, to: n }));
+    // changes: [[skin, field, value], …] — recorded as a single undo step.
+    function changeMany(changes) {
+      const action = changes
+        .filter(([s, f, v]) => v !== s[f])
+        .map(([s, f, v]) => ({ id: s.id, field: f, from: s[f], to: v }));
       if (!action.length) return;
       undoStack.push(action);
       redoStack = [];
-      for (const a of action) setName(a.id, a.to);
+      for (const a of action) setField(a, "to");
+      const n = new Set(action.map((a) => a.id)).size;
       setStatus(
-        (action.length === 1 ? `"${action[0].to}"` : `${action.length} skins renamed`) +
+        (action.length === 1 ? `"${action[0].to}"` : `${n} skin(s) changed`) +
           " — unsaved, press Save (Ctrl+S) to write to osu!"
       );
       render();
     }
 
     const describe = (action, key) =>
-      action.length === 1 ? `"${action[0][key]}"` : `${action.length} skins`;
+      action.length === 1 ? `"${action[0][key]}"` : `${new Set(action.map((a) => a.id)).size} skin(s)`;
 
     function undo() {
       const action = undoStack.pop();
       if (!action) return;
-      for (const a of action) setName(a.id, a.from);
+      for (const a of action) setField(a, "from");
       redoStack.push(action);
       setStatus(`Undid → ${describe(action, "from")}`);
       render();
@@ -438,7 +501,7 @@
     function redo() {
       const action = redoStack.pop();
       if (!action) return;
-      for (const a of action) setName(a.id, a.to);
+      for (const a of action) setField(a, "to");
       undoStack.push(action);
       setStatus(`Redid → ${describe(action, "to")}`);
       render();
@@ -448,11 +511,11 @@
       const dirty = dirtySkins();
       if (!dirty.length || editing) return;
       editing = true;
-      setStatus(`Saving ${dirty.length} rename(s)…`);
+      setStatus(`Saving ${dirty.length} change(s)…`);
       try {
-        const res = await window.skins.save(dirty.map((s) => ({ id: s.id, name: s.name })));
-        for (const s of dirty) s.saved = s.name;
-        setStatus(`Saved ${res.renamed} rename(s).` + (res.backup ? `  (backup: ${res.backup})` : ""), "ok");
+        const res = await window.skins.save(dirty.map((s) => ({ id: s.id, name: s.name, creator: s.creator })));
+        for (const s of dirty) { s.saved = s.name; s.savedCreator = s.creator; }
+        setStatus(`Saved ${res.renamed} change(s).` + (res.backup ? `  (backup: ${res.backup})` : ""), "ok");
       } catch (e) {
         setStatus(errMsg(e), "error");
       }
@@ -590,7 +653,7 @@
         ? `osu! folder: ${custom}\nClick to choose a different one.`
         : "osu! folder: auto-detected. Click to choose it yourself.";
       try {
-        allSkins = (await window.skins.list()).map((s) => ({ ...s, saved: s.name }));
+        allSkins = (await window.skins.list()).map((s) => ({ ...s, saved: s.name, savedCreator: s.creator }));
         folderBtn.classList.remove("attention");
         render();
         setStatus("Double-click (or F2) renames — right-click for menu, Del deletes.");

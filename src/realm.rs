@@ -115,10 +115,13 @@ pub struct Skin {
     pub id: String,
     pub name: String,
     pub creator: String,
+    /// Skin class from InstantiationInfo, e.g. "LegacySkin".
+    pub ty: String,
 }
 
 pub enum Edit {
-    Rename(String),
+    /// Sets each field that is Some.
+    Update { name: Option<String>, creator: Option<String> },
     Delete,
 }
 
@@ -128,6 +131,7 @@ pub struct Db {
     id: i64,
     name: i64,
     creator: i64,
+    instantiation: i64,
     delete_pending: i64,
 }
 
@@ -172,6 +176,7 @@ impl Db {
                 id: prop("ID")?,
                 name: prop("Name")?,
                 creator: prop("Creator")?,
+                instantiation: prop("InstantiationInfo")?,
                 delete_pending: prop("DeletePending")?,
                 realm,
             })
@@ -221,6 +226,7 @@ impl Db {
                     id: self.get_id(o)?,
                     name: self.get_string(o, self.name)?,
                     creator: self.get_string(o, self.creator)?,
+                    ty: skin_type(&self.get_string(o, self.instantiation)?),
                 })
             })
             .collect()
@@ -237,10 +243,18 @@ impl Db {
                 let id = self.get_id(o)?;
                 let Some((_, edit)) = edits.iter().find(|(e, _)| e.eq_ignore_ascii_case(&id)) else { continue };
                 let old = self.get_string(o, self.name)?;
+                let set = |prop, s: &String| {
+                    let v = Value { data: [s.as_ptr() as u64, s.len() as u64], ty: TYPE_STRING };
+                    check(unsafe { realm_set_value(o.0, prop, v, false) })
+                };
                 match edit {
-                    Edit::Rename(new) => {
-                        let v = Value { data: [new.as_ptr() as u64, new.len() as u64], ty: TYPE_STRING };
-                        check(unsafe { realm_set_value(o.0, self.name, v, false) })?;
+                    Edit::Update { name, creator } => {
+                        if let Some(n) = name {
+                            set(self.name, n)?;
+                        }
+                        if let Some(c) = creator {
+                            set(self.creator, c)?;
+                        }
                     }
                     // Same soft delete lazer uses: it purges DeletePending skins on next start.
                     Edit::Delete => {
@@ -272,8 +286,16 @@ fn uuid_string(b: &[u8; 16]) -> String {
     format!("{}-{}-{}-{}-{}", &h[0..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32])
 }
 
+/// "osu.Game.Skinning.LegacySkin, osu.Game" -> "LegacySkin"
+fn skin_type(info: &str) -> String {
+    let class = info.split(',').next().unwrap_or_default();
+    class.rsplit('.').next().unwrap_or_default().trim().to_string()
+}
+
 #[test]
 fn uuid_format() {
+    assert_eq!(skin_type("osu.Game.Skinning.LegacySkin, osu.Game"), "LegacySkin");
+    assert_eq!(skin_type(""), "");
     let b: [u8; 16] = std::array::from_fn(|i| i as u8);
     assert_eq!(uuid_string(&b), "00010203-0405-0607-0809-0a0b0c0d0e0f");
 }

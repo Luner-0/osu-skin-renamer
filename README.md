@@ -19,11 +19,13 @@ Grab the latest build from [Releases](https://github.com/Luner-0/osu-skin-rename
 
 The window lists all your skins. Renaming works like Windows Explorer:
 double-click a name (or select it and press **F2**), then **Enter** to accept
-or **Esc** to cancel. **Right-click** opens a menu with *Rename* and *Delete*
-(also the **Del** key). Deleting asks first and only marks the skin as
+or **Esc** to cancel. **Right-click** opens a menu with *Rename*, *Edit
+metadata…* and *Delete* (also the **Del** key). Deleting asks first and only marks the skin as
 deleted; osu! removes it for good on its next start. The box at the top
 filters the list.
 
+- **Metadata:** *Edit metadata…* edits a skin's name and creator, and shows
+  its ID and type. Like renames, the changes are pending until you save.
 - **Save / undo:** renames are only written to osu! when you press **Save**
   (**Ctrl+S**), all at once with a single backup. Unsaved skins are shown
   in pink. **Undo** (**Ctrl+Z**) and **Redo** (**Ctrl+Y**) step through
@@ -31,7 +33,7 @@ filters the list.
 - **Tags:** add prefix and suffix tags (e.g. `[NM]`) in the panel on the
   right. Drag a tag onto a skin to add it; click a tag to toggle it on the
   selected skin.
-- **Multi-select:** **Alt+click** to select several skins; tags then apply
+- **Multi-select:** **Ctrl+click** (or Alt+click) to select several skins; tags then apply
   to all of them.
 
 ### Where things live
@@ -59,10 +61,11 @@ osu-skin-renamer list
 Shows all skins with their IDs. Every command accepts `--db <path>` (the
 `client.realm` file or the folder containing it) to use a different database.
 
-### Rename or delete a single skin
+### Edit or delete a single skin
 
 ```
 osu-skin-renamer set --id <guid> --name "New name"
+osu-skin-renamer set --id <guid> --creator "New creator"
 osu-skin-renamer delete --id <guid>
 ```
 

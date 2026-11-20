@@ -33,7 +33,7 @@ fn handle(cmd: &str, args: &Value, window: &Window) -> Result<Value, String> {
     match cmd {
         "list" => {
             let skins = open_db(&db())?.skins()?;
-            Ok(skins.iter().map(|s| json!({"id": s.id, "name": s.name, "creator": s.creator})).collect())
+            Ok(skins.iter().map(|s| json!({"id": s.id, "name": s.name, "creator": s.creator, "type": s.ty})).collect())
         }
         "getFolder" => Ok(json!(osu_folder())),
         "chooseFolder" => {
@@ -63,7 +63,10 @@ fn handle(cmd: &str, args: &Value, window: &Window) -> Result<Value, String> {
                 .as_array()
                 .ok_or("bad save request")?
                 .iter()
-                .filter_map(|r| Some((r["id"].as_str()?.to_string(), Edit::Rename(r["name"].as_str()?.to_string()))))
+                .filter_map(|r| {
+                    let field = |k: &str| r[k].as_str().map(String::from);
+                    Some((field("id")?, Edit::Update { name: field("name"), creator: field("creator") }))
+                })
                 .collect();
             let (done, backup) = write_edits(&db(), &edits)?;
             Ok(json!({"renamed": done.len(), "backup": backup}))

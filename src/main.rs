@@ -175,7 +175,7 @@ pub fn write_edits(db_path: &Path, edits: &[(String, Edit)]) -> Result<(Vec<(Str
 
 const USAGE: &str = "osu-skin-renamer — run without arguments for the GUI. Commands:
   list                                    show all skins
-  set --id <guid> --name <text>           rename a single skin
+  set --id <guid> [--name <text>] [--creator <text>]  edit a single skin
   delete --id <guid>                      delete a single skin (soft delete)
   export [file]                           write GUID<TAB>name list (default names.tsv)
   apply [file] [--dry-run]                apply edited names.tsv
@@ -184,7 +184,7 @@ const USAGE: &str = "osu-skin-renamer — run without arguments for the GUI. Com
 
 fn cli(argv: Vec<String>) -> Result<(), String> {
     let mut pos = Vec::new();
-    let (mut db, mut id, mut name, mut re, mut rep, mut dry) = (None, None, None, None, None, false);
+    let (mut db, mut id, mut name, mut creator, mut re, mut rep, mut dry) = (None, None, None, None, None, None, false);
     let mut it = argv.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -194,6 +194,7 @@ fn cli(argv: Vec<String>) -> Result<(), String> {
             "--name" => name = it.next(),
             "--match" => re = it.next(),
             "--replace" => rep = it.next(),
+            "--creator" => creator = it.next(),
             _ => pos.push(a),
         }
     }
@@ -221,8 +222,10 @@ fn cli(argv: Vec<String>) -> Result<(), String> {
             return Ok(());
         }
         Some("set") => {
-            let (Some(id), Some(name)) = (id, name) else { return Err("Usage: set --id <guid> --name <text>".into()) };
-            vec![(id, Edit::Rename(name))]
+            let (Some(id), true) = (id, name.is_some() || creator.is_some()) else {
+                return Err("Usage: set --id <guid> [--name <text>] [--creator <text>]".into());
+            };
+            vec![(id, Edit::Update { name, creator })]
         }
         Some("delete") => {
             let Some(id) = id else { return Err("Usage: delete --id <guid>".into()) };
@@ -252,20 +255,16 @@ fn cli(argv: Vec<String>) -> Result<(), String> {
     }
     if dry {
         for (id, e) in &edits {
-            if let Edit::Rename(n) = e {
-                println!("  {id}  ->  \"{n}\"");
-            }
+            println!("  {id}  {}", describe(e));
         }
         println!("\nDry run: {} change(s) NOT applied.", edits.len());
         return Ok(());
     }
     let (done, backup) = write_edits(&db_path, &edits)?;
     println!("Backup: {}", backup.display());
-    for ((_, from), (_, e)) in done.iter().zip(&edits) {
-        match e {
-            Edit::Rename(to) => println!("  \"{from}\"  ->  \"{to}\""),
-            Edit::Delete => println!("  Deleted \"{from}\" (osu! removes it on next start)"),
-        }
+    for (id, old_name) in &done {
+        let (_, e) = edits.iter().find(|(e, _)| e.eq_ignore_ascii_case(id)).expect("done ids come from edits");
+        println!("  \"{old_name}\"  {}", describe(e));
     }
     if done.len() != edits.len() {
         println!("{} id(s) not found.", edits.len() - done.len());
@@ -287,8 +286,28 @@ fn parse_tsv(text: &str) -> Vec<(String, String)> {
 fn plan(skins: &[realm::Skin], new_name: impl Fn(&realm::Skin) -> Option<String>) -> Vec<(String, Edit)> {
     skins
         .iter()
-        .filter_map(|s| new_name(s).filter(|n| !n.is_empty() && *n != s.name).map(|n| (s.id.clone(), Edit::Rename(n))))
+        .filter_map(|s| new_name(s).filter(|n| !n.is_empty() && *n != s.name).map(|n| (s.id.clone(), rename(n))))
         .collect()
+}
+
+fn rename(name: String) -> Edit {
+    Edit::Update { name: Some(name), creator: None }
+}
+
+fn describe(e: &Edit) -> String {
+    match e {
+        Edit::Update { name, creator } => {
+            let mut parts = Vec::new();
+            if let Some(n) = name {
+                parts.push(format!("->  \"{n}\""));
+            }
+            if let Some(c) = creator {
+                parts.push(format!("creator -> \"{c}\""));
+            }
+            parts.join("  ")
+        }
+        Edit::Delete => "deleted (osu! removes it on next start)".into(),
+    }
 }
 
 fn main() {
